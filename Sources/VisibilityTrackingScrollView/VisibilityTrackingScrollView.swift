@@ -7,16 +7,17 @@ import SwiftUI
 
 public struct VisibilityTrackingScrollView<Content, ID>: View where Content: View, ID: Hashable {
     @ViewBuilder let content: Content
-    
+    let axes: Axis.Set
     @State var visibilityTracker: VisibilityTracker<ID>
     
-    public init(action: @escaping VisibilityTracker<ID>.Action, @ViewBuilder content: () -> Content) {
+    public init(axes: Axis.Set = .vertical, action: @escaping VisibilityTracker<ID>.Action, @ViewBuilder content: () -> Content) {
         self.content = content()
-        self._visibilityTracker = .init(initialValue: VisibilityTracker<ID>(action: action))
+        self._visibilityTracker = .init(initialValue: VisibilityTracker<ID>(thresholds: [0.1, 0.5], action: action))
+        self.axes = axes
     }
     
     public var body: some View {
-        ScrollView {
+        ScrollView(axes) {
             content
                 .environmentObject(visibilityTracker)
         }

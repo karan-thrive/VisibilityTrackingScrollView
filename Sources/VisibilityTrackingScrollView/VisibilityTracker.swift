@@ -6,8 +6,8 @@
 import SwiftUI
 
 public enum VisibilityChange {
-    case hidden
-    case shown
+    case hidden(_ threshold: CGFloat)
+    case shown(_ threshold: CGFloat)
 }
 
 public class VisibilityTracker<ID: Hashable>: ObservableObject {
@@ -16,6 +16,11 @@ public class VisibilityTracker<ID: Hashable>: ObservableObject {
     
     /// Dictionary containing the offset of every visible view.
     public var visibleViews: [ID:CGFloat]
+    
+    private var visibilityByThresholds: [ID:[CGFloat]]
+    
+    /// Visible threshold offset
+    private let thresholds: [CGFloat]
     
     /// Ids of the visible views, sorted by offset.
     /// The first item is the top view, the last one, the bottom view.
@@ -33,11 +38,13 @@ public class VisibilityTracker<ID: Hashable>: ObservableObject {
     /// Action callback signature.
     public typealias Action = (ID, VisibilityChange, VisibilityTracker<ID>) -> ()
 
-    public init(action: @escaping Action) {
+    public init(thresholds: [CGFloat], action: @escaping Action) {
         self.containerBounds = .zero
         self.visibleViews = [:]
         self.sortedViewIDs = []
         self.action = action
+        self.thresholds = thresholds
+        self.visibilityByThresholds = [:]
     }
     
     public func reportContainerBounds(_ bounds: CGRect) {
@@ -49,21 +56,46 @@ public class VisibilityTracker<ID: Hashable>: ObservableObject {
         let size = bounds.size
         let bottomRight = CGPoint(x: topLeft.x + size.width, y: topLeft.y + size.height)
         let isVisible = containerBounds.contains(topLeft) || containerBounds.contains(bottomRight)
-        let wasVisible = visibleViews[id] != nil
+
+        let visibleThreshold = threshold(bounds)
 
         if isVisible {
+            var visibleThresholds = visibilityByThresholds[id] ?? []
             visibleViews[id] = bounds.origin.y - containerBounds.origin.y
             sortViews()
-            if !wasVisible {
-                action(id, .shown, self)
+            thresholds.forEach { threshold in
+                if visibleThreshold >= threshold {
+                    if !visibleThresholds.contains(threshold) {
+                        visibleThresholds.append(threshold)
+                        visibilityByThresholds[id] = visibleThresholds
+                        action(id, .shown(threshold), self)
+                    }
+                } else {
+                    if visibleThresholds.contains(threshold) {
+                        visibleThresholds.removeAll { $0 == threshold }
+                        visibilityByThresholds[id] = visibleThresholds
+                        action(id, .hidden(threshold), self)
+                    }
+                }
             }
         } else {
+            let wasVisible = visibleViews[id] != nil
             if wasVisible {
                 visibleViews.removeValue(forKey: id)
+                visibilityByThresholds[id] = []
                 sortViews()
-                action(id, .hidden, self)
+                action(id, .hidden(0), self)
             }
         }
+    }
+    
+    private func threshold(_ bounds: CGRect) -> CGFloat {
+        let intersectionRect = containerBounds.intersection(bounds)
+        
+        let originalArea = bounds.width * bounds.height
+        let intersectionArea = intersectionRect.width * intersectionRect.height
+        
+        return intersectionArea / originalArea
     }
     
     func sortViews() {

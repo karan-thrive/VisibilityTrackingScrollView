@@ -20,25 +20,25 @@ public extension Color {
 
 struct ContentView: View {
     var body: some View {
-        VisibilityTrackingScrollView(action: handleVisibilityChanged) {
-            LazyVStack {
+        VisibilityTrackingScrollView(axes: .horizontal, action: handleVisibilityChanged) {
+            LazyHStack {
                 ForEach(0..<100, id: \.self) { item in
                     Text("\(item)")
-                        .frame(width: 100, height: CGFloat.random(in: 20...60))
+                        .frame(width: 100, height: CGFloat.random(in: 20...100))
                         .background(Color.random())
                         .trackVisibility(id: "\(item)")
                 }
             }
         }
+        .border(.red)
     }
     
     func handleVisibilityChanged(_ id: String, change: VisibilityChange, tracker: VisibilityTracker<String>) {
         switch change {
-            case .shown: print("\(id) shown")
-            case .hidden: print("\(id) hidden")
-        }
-        if let top = tracker.topVisibleView {
-            print("Top view is \(top), at \(tracker.visibleViews[top]!)")
+        case .shown(let threshold):
+            print("\(id) shown -- Threshold: \(threshold)")
+        case .hidden(let threshold):
+            print("\(id) hidden -- Threshold: \(threshold)")
         }
     }
 }
